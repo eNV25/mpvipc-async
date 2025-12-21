@@ -145,7 +145,15 @@ impl MpvIpc {
     pub(crate) async fn run(mut self) -> Result<(), MpvError> {
         loop {
             tokio::select! {
-              Some(event) = self.socket.next() => {
+              event = self.socket.next() => {
+                let Some(event) = event else {
+                    if let Err(broadcast::error::SendError(_)) =
+                        self.event_channel.send(MpvIpcEvent(json!({ "event": "shutdown" })))
+                    {
+                        log::trace!("Failed to send shutdown event to channel, ignoring");
+                    };
+                    return Ok(());
+                };
                 log::trace!("Got event: {:?}", event);
 
                 let parsed_event = event
